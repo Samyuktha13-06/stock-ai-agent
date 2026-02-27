@@ -1,6 +1,3 @@
-import threading
-import time
-import schedule
 import os
 from flask import Flask, render_template_string
 from data_fetcher import get_stock_data
@@ -62,6 +59,9 @@ HTML_TEMPLATE = """
 </html>
 """
 
+# =========================
+# DASHBOARD ROUTE
+# =========================
 @app.route("/")
 def home():
     signals = fetch_signals()
@@ -69,9 +69,17 @@ def home():
 
 
 # =========================
-# BACKGROUND AI ENGINE
+# AGENT EXECUTION ROUTE
 # =========================
+@app.route("/run")
+def run_now():
+    run_agent()
+    return "Agent executed successfully."
 
+
+# =========================
+# MAIN AI LOGIC
+# =========================
 def run_agent():
     print("📊 Running market analysis...")
 
@@ -84,14 +92,12 @@ def run_agent():
         if not indicators:
             continue
 
-        # AI now returns structured JSON dict
         ai_result = ai_decide(stock, indicators)
 
         decision_value = ai_result.get("decision", "HOLD")
         confidence_value = int(ai_result.get("confidence", 0))
         reason = ai_result.get("reason", "")
 
-        # Store in DB
         insert_signal(
             stock['stock'],
             decision_value,
@@ -99,7 +105,6 @@ def run_agent():
             stock['price']
         )
 
-        # FULL DETAILED EMAIL
         message = f"""
 Stock: {stock['stock']}
 Price: {stock['price']}
@@ -117,30 +122,12 @@ Reason: {reason}
 =================================
 """
 
-        print(message)
         log_signal(message)
 
         if decision_value in ["BUY", "SELL"]:
             send_email("🚨 AI Stock Alert", message)
 
     print("✅ Cycle completed.")
-
-
-def scheduler_loop():
-    schedule.every(15).minutes.do(run_agent)
-    run_agent()
-
-    while True:
-        try:
-            schedule.run_pending()
-            time.sleep(1)
-        except Exception as e:
-            print("Recovered:", e)
-            time.sleep(5)
-
-
-# Start background thread
-threading.Thread(target=scheduler_loop, daemon=True).start()
 
 
 # =========================
