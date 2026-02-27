@@ -12,7 +12,7 @@ def get_stock_data():
 
     for stock in WATCHLIST:
         try:
-            data = yf.Ticker(stock).history(period="1d", interval="5m")
+            data = yf.Ticker(stock).history(period="1m", interval="id")
 
             if data.empty:
                 continue
