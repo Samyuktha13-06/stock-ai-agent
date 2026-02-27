@@ -1,7 +1,6 @@
 import threading
 import time
 import schedule
-import re
 import os
 from flask import Flask, render_template_string
 from data_fetcher import get_stock_data
@@ -24,13 +23,17 @@ HTML_TEMPLATE = """
 <html>
 <head>
     <title>AI Stock Dashboard</title>
+    <meta http-equiv="refresh" content="60">
     <style>
         body { font-family: Arial; background-color: #111; color: #eee; }
-        table { border-collapse: collapse; width: 90%; margin: 20px auto; }
+        table { border-collapse: collapse; width: 95%; margin: 20px auto; }
         th, td { border: 1px solid #444; padding: 10px; text-align: center; }
         th { background-color: #222; }
         tr:nth-child(even) { background-color: #1a1a1a; }
         h1 { text-align: center; }
+        .buy { color: #00ff88; font-weight: bold; }
+        .sell { color: #ff4d4d; font-weight: bold; }
+        .hold { color: #ffaa00; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -42,13 +45,13 @@ HTML_TEMPLATE = """
             <th>Decision</th>
             <th>Confidence</th>
             <th>Price</th>
-            <th>Timestamp</th>
+            <th>Timestamp (IST)</th>
         </tr>
         {% for row in signals %}
         <tr>
             <td>{{ row[0] }}</td>
             <td>{{ row[1] }}</td>
-            <td>{{ row[2] }}</td>
+            <td class="{{ row[2]|lower }}">{{ row[2] }}</td>
             <td>{{ row[3] }}%</td>
             <td>{{ row[4] }}</td>
             <td>{{ row[5] }}</td>
@@ -63,6 +66,7 @@ HTML_TEMPLATE = """
 def home():
     signals = fetch_signals()
     return render_template_string(HTML_TEMPLATE, signals=signals)
+
 
 # =========================
 # BACKGROUND AI ENGINE
@@ -80,14 +84,14 @@ def run_agent():
         if not indicators:
             continue
 
-        decision = ai_decide(stock, indicators)
+        # AI now returns structured JSON dict
+        ai_result = ai_decide(stock, indicators)
 
-        decision_match = re.search(r"Decision:\s*(BUY|SELL|HOLD)", decision)
-        confidence_match = re.search(r"Confidence:\s*(\d+)", decision)
+        decision_value = ai_result.get("decision", "HOLD")
+        confidence_value = int(ai_result.get("confidence", 0))
+        reason = ai_result.get("reason", "")
 
-        decision_value = decision_match.group(1) if decision_match else "HOLD"
-        confidence_value = int(confidence_match.group(1)) if confidence_match else 0
-
+        # Store in DB
         insert_signal(
             stock['stock'],
             decision_value,
@@ -95,7 +99,25 @@ def run_agent():
             stock['price']
         )
 
-        message = f"{stock['stock']} → {decision_value} ({confidence_value}%)"
+        # FULL DETAILED EMAIL
+        message = f"""
+Stock: {stock['stock']}
+Price: {stock['price']}
+Change: {stock['change']}%
+Volume: {stock['volume']}
+
+Trend: {indicators['trend']}
+Volatility: {indicators['volatility']}
+Strength: {indicators['strength']}
+
+Decision: {decision_value}
+Confidence: {confidence_value}%
+Reason: {reason}
+
+=================================
+"""
+
+        print(message)
         log_signal(message)
 
         if decision_value in ["BUY", "SELL"]:
@@ -116,8 +138,10 @@ def scheduler_loop():
             print("Recovered:", e)
             time.sleep(5)
 
+
 # Start background thread
 threading.Thread(target=scheduler_loop, daemon=True).start()
+
 
 # =========================
 # RUN FLASK

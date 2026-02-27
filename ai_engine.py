@@ -1,10 +1,10 @@
 import os
+import json
 from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# initialize groq client
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def ai_decide(stock_data, indicators):
@@ -12,7 +12,7 @@ def ai_decide(stock_data, indicators):
     prompt = f"""
 You are a professional Indian stock market analyst.
 
-Analyze the stock using given data.
+Analyze the stock using the data below:
 
 Stock: {stock_data['stock']}
 Current Price: {stock_data['price']}
@@ -23,21 +23,35 @@ Trend: {indicators['trend']}
 Volatility: {indicators['volatility']}
 Strength vs SMA: {indicators['strength']}
 
-Give output in EXACT format:
+Return ONLY valid JSON in this exact format:
 
-Decision: BUY or SELL or HOLD
-Confidence: number between 0-100
-Reason: one line simple reason
+{{
+    "decision": "BUY or SELL or HOLD",
+    "confidence": number between 0 and 100,
+    "reason": "one short sentence explaining why"
+}}
+
+Do not include any extra text.
 """
 
     try:
         chat = client.chat.completions.create(
-           model="llama-3.1-8b-instant",
-            messages=[{"role": "user", "content": prompt}]
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3
         )
 
-        reply = chat.choices[0].message.content
-        return reply
+        reply = chat.choices[0].message.content.strip()
+
+        # Try parsing JSON
+        parsed = json.loads(reply)
+
+        return parsed
 
     except Exception as e:
-        return f"AI error: {e}"
+        print("AI error:", e)
+        return {
+            "decision": "HOLD",
+            "confidence": 0,
+            "reason": "AI parsing failed"
+        }

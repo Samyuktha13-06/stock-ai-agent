@@ -1,7 +1,9 @@
 import sqlite3
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 DB_NAME = "stock_signals.db"
+
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
@@ -21,17 +23,22 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 def insert_signal(stock, decision, confidence, price):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
+    # Always store IST time
+    ist_time = datetime.now(ZoneInfo("Asia/Kolkata"))
+
     cursor.execute("""
     INSERT INTO signals (stock, decision, confidence, price, timestamp)
     VALUES (?, ?, ?, ?, ?)
-    """, (stock, decision, confidence, price, datetime.now()))
+    """, (stock, decision, confidence, price, ist_time))
 
     conn.commit()
     conn.close()
+
 
 def fetch_signals():
     conn = sqlite3.connect(DB_NAME)
