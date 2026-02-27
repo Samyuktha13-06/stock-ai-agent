@@ -1,26 +1,31 @@
-import smtplib
 import os
-from email.mime.text import MIMEText
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EMAIL = os.getenv("EMAIL")
-PASSWORD = os.getenv("EMAIL_PASS")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
+TO_EMAIL = os.getenv("EMAIL")  # your own email
 
-def send_email(subject, message):
 
-    msg = MIMEText(message)
-    msg["Subject"] = subject
-    msg["From"] = EMAIL
-    msg["To"] = EMAIL
+def send_email(subject, body):
+    url = "https://api.resend.com/emails"
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-            server.login(EMAIL, PASSWORD)
-            server.send_message(msg)
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
+    data = {
+        "from": "AI Stock Agent <onboarding@resend.dev>",
+        "to": [TO_EMAIL],
+        "subject": subject,
+        "text": body
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    if response.status_code == 200:
         print("Email sent successfully.")
-
-    except Exception as e:
-        print(f"Email error: {e}")
+    else:
+        print("Email failed:", response.text)
