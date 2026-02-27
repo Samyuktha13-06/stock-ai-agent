@@ -1,10 +1,14 @@
 import schedule
 import time
+import re
 from data_fetcher import get_stock_data
 from indicators import calculate_indicators
 from ai_engine import ai_decide
 from mailer import send_email
 from logger import log_signal
+from database import init_db, insert_signal
+
+init_db()
 
 print("🚀 Autonomous Stock AI Agent Started...")
 
@@ -25,6 +29,21 @@ def run_agent():
 
         decision = ai_decide(stock, indicators)
 
+        # --- Parse Decision ---
+        decision_match = re.search(r"Decision:\s*(BUY|SELL|HOLD)", decision)
+        confidence_match = re.search(r"Confidence:\s*(\d+)", decision)
+
+        decision_value = decision_match.group(1) if decision_match else "HOLD"
+        confidence_value = int(confidence_match.group(1)) if confidence_match else 0
+
+        # --- Store in Database ---
+        insert_signal(
+            stock['stock'],
+            decision_value,
+            confidence_value,
+            stock['price']
+        )
+
         message = f"""
 Stock: {stock['stock']}
 Price: {stock['price']}
@@ -42,22 +61,24 @@ AI RESULT:
 
         print(message)
 
-        # log always
         log_signal(message)
 
-        # send email only if BUY or SELL
-        if "BUY" in decision or "SELL" in decision:
+        if decision_value in ["BUY", "SELL"]:
             send_email("🚨 AI Stock Alert", message)
 
     print("\n✅ Cycle completed.\n")
 
 
-# Run once immediately for testing
+# Run once immediately
 run_agent()
 
-# Then run every 30 minutes automatically
-schedule.every(30).minutes.do(run_agent)
+# Run every 60 minutes (better for cloud stability)
+schedule.every(60).minutes.do(run_agent)
 
 while True:
-    schedule.run_pending()
-    time.sleep(1)
+    try:
+        schedule.run_pending()
+        time.sleep(1)
+    except Exception as e:
+        print(f"Main loop recovered: {e}")
+        time.sleep(5)
