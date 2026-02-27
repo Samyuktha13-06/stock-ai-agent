@@ -127,7 +127,7 @@ Reason: {reason}
 
 
 def scheduler_loop():
-    schedule.every(60).minutes.do(run_agent)
+    schedule.every(15).minutes.do(run_agent)
     run_agent()
 
     while True:
