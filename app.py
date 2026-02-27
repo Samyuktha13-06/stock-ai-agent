@@ -87,6 +87,8 @@ def run_agent():
     if not stocks:
         return
 
+    alert_messages = []   # collect BUY/SELL alerts
+
     for stock in stocks:
         indicators = calculate_indicators(stock["stock"])
         if not indicators:
@@ -124,8 +126,18 @@ Reason: {reason}
 
         log_signal(message)
 
+        # Collect alerts instead of sending immediately
         if decision_value in ["BUY", "SELL"]:
-            send_email("🚨 AI Stock Alert", message)
+            alert_messages.append(message)
+
+    # Send ONE combined email
+    if alert_messages:
+        combined_message = "\n\n".join(alert_messages)
+        try:
+            send_email("🚨 AI Stock Alerts (Combined)", combined_message)
+            print("Combined email sent.")
+        except Exception as e:
+            print("Email failed:", e)
 
     print("✅ Cycle completed.")
 
