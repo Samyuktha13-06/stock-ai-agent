@@ -13,30 +13,26 @@ init_db()
 print("🚀 Autonomous Stock AI Agent Started...")
 
 def run_agent():
-    print("\n📊 Running market analysis...\n")
+    print("📊 Running market analysis...")
 
     stocks = get_stock_data()
-
     if not stocks:
-        print("No stock data received.")
         return
+
+    alert_messages = []   # collect all BUY/SELL messages
 
     for stock in stocks:
         indicators = calculate_indicators(stock["stock"])
-
         if not indicators:
             continue
 
-        decision = ai_decide(stock, indicators)
+        ai_result = ai_decide(stock, indicators)
 
-        # --- Parse Decision ---
-        decision_match = re.search(r"Decision:\s*(BUY|SELL|HOLD)", decision)
-        confidence_match = re.search(r"Confidence:\s*(\d+)", decision)
+        decision_value = ai_result.get("decision", "HOLD")
+        confidence_value = int(ai_result.get("confidence", 0))
+        reason = ai_result.get("reason", "")
 
-        decision_value = decision_match.group(1) if decision_match else "HOLD"
-        confidence_value = int(confidence_match.group(1)) if confidence_match else 0
-
-        # --- Store in Database ---
+        # Insert into database
         insert_signal(
             stock['stock'],
             decision_value,
@@ -54,20 +50,28 @@ Trend: {indicators['trend']}
 Volatility: {indicators['volatility']}
 Strength: {indicators['strength']}
 
-AI RESULT:
-{decision}
+Decision: {decision_value}
+Confidence: {confidence_value}%
+Reason: {reason}
+
 =================================
 """
 
-        print(message)
-
         log_signal(message)
 
+        # Collect only BUY/SELL alerts
         if decision_value in ["BUY", "SELL"]:
-            send_email("🚨 AI Stock Alert", message)
+            alert_messages.append(message)
 
-    print("\n✅ Cycle completed.\n")
+    # Send ONE combined email
+    if alert_messages:
+        combined_message = "\n\n".join(alert_messages)
+        try:
+            send_email("🚨 AI Stock Alerts (Combined)", combined_message)
+        except Exception as e:
+            print("Email failed:", e)
 
+    print("✅ Cycle completed.")
 
 # Run once immediately
 run_agent()
